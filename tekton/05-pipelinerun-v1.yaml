@@ -4,7 +4,7 @@
 apiVersion: tekton.dev/v1beta1
 kind: PipelineRun
 metadata:
-  generateName: build-and-deploy-
+  name: build-and-deploy-v1
   namespace: tekton-pipelines
 spec:
   pipelineRef:
