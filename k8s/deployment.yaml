@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: page-demo
-          image: guerrero11dan/page-public-demo:v2   # ArgoCD detecta cambios aquí
+          image: guerrero11dan/page-public-demo:v1   # ArgoCD detecta cambios aquí
           ports:
             - containerPort: 80
           resources:
