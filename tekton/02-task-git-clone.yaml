@@ -1,0 +1,32 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: git-clone
+  namespace: tekton-pipelines
+spec:
+  params:
+    - name: url
+      description: URL del repositorio Git
+      type: string
+    - name: revision
+      description: Branch o tag a clonar
+      type: string
+      default: main
+  workspaces:
+    - name: source
+      description: Directorio donde se clona el código
+  steps:
+    - name: clone
+      image: alpine/git:v2.40.1
+      script: |
+        #!/bin/sh
+        set -e
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "  Clonando: $(params.url)"
+        echo "  Branch:   $(params.revision)"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        git clone --depth=1 --branch=$(params.revision) \
+          $(params.url) $(workspaces.source.path)
+        echo ""
+        echo "Archivos clonados:"
+        ls -la $(workspaces.source.path)

@@ -1,0 +1,46 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: build-and-deploy
+  namespace: tekton-pipelines
+spec:
+  params:
+    - name: repo-url
+      description: URL del repositorio Git
+      type: string
+      default: "https://github.com/dguerrero11/page-public-demo"
+    - name: revision
+      description: Branch o tag a construir
+      type: string
+      default: main
+    - name: image
+      description: "Imagen con tag. Ej: dguerrero11/page-demo:v1"
+      type: string
+      default: "dguerrero11/page-demo:v1"
+  workspaces:
+    - name: shared-source
+      description: Workspace NFS compartido entre Tasks
+  tasks:
+    - name: clone
+      taskRef:
+        name: git-clone
+      params:
+        - name: url
+          value: $(params.repo-url)
+        - name: revision
+          value: $(params.revision)
+      workspaces:
+        - name: source
+          workspace: shared-source
+
+    - name: build-push
+      taskRef:
+        name: build-push
+      runAfter:
+        - clone
+      params:
+        - name: image
+          value: $(params.image)
+      workspaces:
+        - name: source
+          workspace: shared-source

@@ -1,0 +1,27 @@
+# Usar después de modificar app/index.html para v2
+# y actualizar k8s/deployment.yaml con image: dguerrero11/page-demo:v2
+apiVersion: tekton.dev/v1beta1
+kind: PipelineRun
+metadata:
+  generateName: build-and-deploy-
+  namespace: tekton-pipelines
+spec:
+  pipelineRef:
+    name: build-and-deploy
+  params:
+    - name: repo-url
+      value: "https://github.com/dguerrero11/page-public-demo"
+    - name: revision
+      value: main
+    - name: image
+      value: "dguerrero11/page-demo:v2"
+  workspaces:
+    - name: shared-source
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          storageClassName: nfs-csi
+          resources:
+            requests:
+              storage: 500Mi

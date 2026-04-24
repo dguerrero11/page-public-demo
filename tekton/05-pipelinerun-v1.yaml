@@ -1,0 +1,28 @@
+# Lanzar: kubectl apply -f 05-pipelinerun-v1.yaml
+# Logs:   tkn pipelinerun logs --last -f -n tekton-pipelines
+# Estado: tkn pipelinerun list -n tekton-pipelines
+apiVersion: tekton.dev/v1beta1
+kind: PipelineRun
+metadata:
+  generateName: build-and-deploy-
+  namespace: tekton-pipelines
+spec:
+  pipelineRef:
+    name: build-and-deploy
+  params:
+    - name: repo-url
+      value: "https://github.com/dguerrero11/page-public-demo"
+    - name: revision
+      value: main
+    - name: image
+      value: "dguerrero11/page-demo:v1"
+  workspaces:
+    - name: shared-source
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          storageClassName: nfs-csi
+          resources:
+            requests:
+              storage: 500Mi

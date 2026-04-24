@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bootcamp Kubernetes — Demo App</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: linear-gradient(135deg, #1a1f2e 0%, #0d1117 100%);
+      border-bottom: 1px solid #30363d;
+      padding: 1rem 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #58a6ff;
+    }
+
+    .logo span { color: #e2e8f0; }
+
+    .version-badge {
+      background: #238636;
+      color: #fff;
+      padding: 0.3rem 0.9rem;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+    }
+
+    .hero {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 4rem 2rem;
+      text-align: center;
+    }
+
+    .hero h1 {
+      font-size: clamp(2rem, 5vw, 3.5rem);
+      font-weight: 800;
+      line-height: 1.2;
+      margin-bottom: 1.5rem;
+    }
+
+    .hero h1 em {
+      font-style: normal;
+      background: linear-gradient(90deg, #58a6ff, #bc8cff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hero p {
+      font-size: 1.15rem;
+      color: #8b949e;
+      max-width: 540px;
+      line-height: 1.7;
+      margin-bottom: 2.5rem;
+    }
+
+    .badges {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-bottom: 3rem;
+    }
+
+    .badge {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 0.5rem 1rem;
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .badge .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #3fb950;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .pipeline {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      padding: 1.5rem 2rem;
+      flex-wrap: wrap;
+      justify-content: center;
+      max-width: 700px;
+    }
+
+    .step {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.4rem;
+      min-width: 80px;
+    }
+
+    .step-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.4rem;
+    }
+
+    .step-icon.git    { background: #21262d; border: 1px solid #f0883e44; }
+    .step-icon.tekton { background: #21262d; border: 1px solid #58a6ff44; }
+    .step-icon.docker { background: #21262d; border: 1px solid #2496ed44; }
+    .step-icon.argo   { background: #21262d; border: 1px solid #ef6c0044; }
+    .step-icon.k8s    { background: #21262d; border: 1px solid #3fb95044; }
+
+    .step span {
+      font-size: 0.72rem;
+      color: #8b949e;
+      text-align: center;
+    }
+
+    .arrow { color: #30363d; font-size: 1.2rem; }
+
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      padding: 2rem;
+      max-width: 900px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    .info-card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      padding: 1.25rem 1.5rem;
+    }
+
+    .info-card .label {
+      font-size: 0.75rem;
+      color: #8b949e;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.4rem;
+    }
+
+    .info-card .value {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #58a6ff;
+    }
+
+    footer {
+      text-align: center;
+      padding: 1.5rem;
+      color: #484f58;
+      font-size: 0.8rem;
+      border-top: 1px solid #21262d;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo">⎈ <span>Bootcamp Kubernetes</span></div>
+    <div class="version-badge">v1.0.0</div>
+  </header>
+
+  <section class="hero">
+    <h1>Deploy con <em>GitOps</em><br>en Kubernetes</h1>
+    <p>
+      Esta app fue desplegada automáticamente por <strong>ArgoCD</strong>
+      después de que <strong>Tekton</strong> construyó y publicó la imagen.
+      Solo hizo falta un <code>git push</code>.
+    </p>
+
+    <div class="badges">
+      <div class="badge"><div class="dot"></div> ArgoCD Synced</div>
+      <div class="badge"><div class="dot"></div> Tekton Pipeline OK</div>
+      <div class="badge"><div class="dot"></div> Prometheus Scraping</div>
+    </div>
+
+    <div class="pipeline">
+      <div class="step">
+        <div class="step-icon git">🐙</div>
+        <span>git push</span>
+      </div>
+      <div class="arrow">→</div>
+      <div class="step">
+        <div class="step-icon tekton">⚙️</div>
+        <span>Tekton Clone</span>
+      </div>
+      <div class="arrow">→</div>
+      <div class="step">
+        <div class="step-icon docker">🐳</div>
+        <span>Kaniko Build</span>
+      </div>
+      <div class="arrow">→</div>
+      <div class="step">
+        <div class="step-icon argo">🔄</div>
+        <span>ArgoCD Sync</span>
+      </div>
+      <div class="arrow">→</div>
+      <div class="step">
+        <div class="step-icon k8s">☸️</div>
+        <span>K8s Deploy</span>
+      </div>
+    </div>
+  </section>
+
+  <div class="info-grid">
+    <div class="info-card">
+      <div class="label">Versión</div>
+      <div class="value">v1.0.0</div>
+    </div>
+    <div class="info-card">
+      <div class="label">Ambiente</div>
+      <div class="value">Kubernetes</div>
+    </div>
+    <div class="info-card">
+      <div class="label">Namespace</div>
+      <div class="value">demo</div>
+    </div>
+    <div class="info-card">
+      <div class="label">Pipeline</div>
+      <div class="value">Tekton + ArgoCD</div>
+    </div>
+  </div>
+
+  <footer>
+    Bootcamp Kubernetes — Clase 4: GitOps CI/CD con Tekton + ArgoCD
+  </footer>
+
+</body>
+</html>
