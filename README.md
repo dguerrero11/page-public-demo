@@ -111,10 +111,11 @@ tkn version
 ## PARTE 2 — Crear Secret de Docker Hub
 
 ```bash
-# Reemplazar con tus credenciales reales
+# Usar el token de Docker Hub (NO la contraseña de la cuenta)
+# Generar en: Docker Hub → Account Settings → Security → New Access Token
 kubectl create secret docker-registry docker-credentials \
   --docker-server=https://index.docker.io/v1/ \
-  --docker-username=dguerrero11 \
+  --docker-username=guerrero11dan \
   --docker-password=<TU_TOKEN_DOCKERHUB> \
   -n tekton-pipelines
 
@@ -160,7 +161,7 @@ tkn pipelinerun logs --last -f -n tekton-pipelines
 1. Kubernetes crea un PVC de 500Mi en NFS (el workspace compartido)
 2. Pod del Task "clone" arranca → clona el repo en /workspace
 3. Pod del Task "build-push" arranca → Kaniko lee /workspace/app/
-4. Kaniko construye la imagen y la pushea a Docker Hub como dguerrero11/page-demo:v1
+4. Kaniko construye la imagen y la pushea a Docker Hub como guerrero11dan/page-public-demo:v1
 5. El PVC se libera
 ```
 
@@ -170,7 +171,7 @@ kubectl get pods -n tekton-pipelines
 # Verás: build-and-deploy-XXXX-clone-pod y build-and-deploy-XXXX-build-push-pod
 
 # Verificar que la imagen llegó a Docker Hub
-# Ir a: hub.docker.com/r/dguerrero11/page-demo/tags
+# Ir a: hub.docker.com/r/guerrero11dan/page-public-demo/tags
 ```
 
 ---
@@ -223,7 +224,7 @@ kubectl get application -n argocd
 1. Leyó `k8s/` del repo
 2. Encontró `namespace.yaml`, `deployment.yaml`, `service.yaml`
 3. Aplicó los tres manifiestos en el cluster
-4. El Deployment intentó arrancar con `dguerrero11/page-demo:v1`
+4. El Deployment intentó arrancar con `guerrero11dan/page-public-demo:v1`
 
 ```bash
 # Ver los pods desplegados
@@ -261,9 +262,9 @@ background: #1f6feb;   /* azul en vez de verde */
 Editar `k8s/deployment.yaml`:
 ```yaml
 # Cambiar:
-image: dguerrero11/page-demo:v1
+image: guerrero11dan/page-public-demo:v1
 # Por:
-image: dguerrero11/page-demo:v2
+image: guerrero11dan/page-public-demo:v2
 ```
 
 ### Paso 3 — Commit y push
@@ -342,7 +343,7 @@ ArgoCD UI → page-demo → History and Rollback
 # Verificar que volvió a v1
 kubectl get deployment page-demo -n demo \
   -o jsonpath='{.spec.template.spec.containers[0].image}'
-# Debe mostrar: dguerrero11/page-demo:v1
+# Debe mostrar: guerrero11dan/page-public-demo:v1
 ```
 
 ---

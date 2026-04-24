@@ -14,9 +14,9 @@ spec:
       type: string
       default: main
     - name: image
-      description: "Imagen con tag. Ej: dguerrero11/page-demo:v1"
+      description: "Imagen con tag. Ej: guerrero11dan/page-public-demo:v1"
       type: string
-      default: "dguerrero11/page-demo:v1"
+      default: "guerrero11dan/page-public-demo:v1"
   workspaces:
     - name: shared-source
       description: Workspace NFS compartido entre Tasks

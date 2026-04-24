@@ -14,7 +14,7 @@ spec:
     - name: revision
       value: main
     - name: image
-      value: "dguerrero11/page-demo:v2"
+      value: "guerrero11dan/page-public-demo:v2"
   workspaces:
     - name: shared-source
       volumeClaimTemplate:
