@@ -74,7 +74,7 @@ kubectl get pods -n argocd
 ```
 
 ### Cuentas necesarias
-- GitHub: repo `page-public-demo` accesible
+- GitHub: repo `page-public-demo` accesible + Personal Access Token
 - Docker Hub: usuario + token de acceso (no la contraseña)
 
 ### Generar token Docker Hub
@@ -83,6 +83,37 @@ Docker Hub → Account Settings → Security → New Access Token
 Nombre: bootcamp-tekton
 Permisos: Read & Write
 ```
+
+### Generar token GitHub (PAT)
+```
+GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens
+Repository access: Solo este repo
+Permisos: Contents → Read & Write, Metadata → Read
+```
+
+### Puertos de firewall necesarios (Rocky Linux 9)
+
+```bash
+# Abrir todos los puertos del lab de una vez (ejecutar en TODOS los nodos)
+ansible all -i /root/kubernetes/ansible-k8s/inventory/hosts.ini \
+  -m firewalld \
+  -a "port={{ item }}/tcp permanent=yes state=enabled immediate=yes" \
+  --become \
+  -e "item={{ item }}" \
+  --loop "30443 31080"
+
+# O manualmente nodo por nodo:
+for port in 30443 31080; do
+  firewall-cmd --add-port=${port}/tcp --permanent
+done
+firewall-cmd --reload
+firewall-cmd --list-ports
+```
+
+| Puerto | Servicio | Descripción |
+|--------|----------|-------------|
+| 30443  | ArgoCD UI | HTTPS — acceso a la interfaz de ArgoCD |
+| 31080  | App demo  | HTTP — página web desplegada por ArgoCD |
 
 ---
 
@@ -104,6 +135,32 @@ kubectl get crds | grep tekton
 curl -LO https://github.com/tektoncd/cli/releases/download/v0.35.0/tkn_0.35.0_Linux_x86_64.tar.gz
 tar xzf tkn_0.35.0_Linux_x86_64.tar.gz -C /usr/local/bin tkn
 tkn version
+```
+
+### ⚠️ CRÍTICO — PodSecurity: etiquetar el namespace de Tekton
+
+Kubernetes 1.25+ incluye **Pod Security Admission** activado por defecto. El perfil
+`restricted` bloquea los pods de Tekton (Kaniko necesita permisos elevados para
+construir imágenes). Sin este paso los pods quedan en `Pending` sin ningún mensaje
+claro de error.
+
+```bash
+# Etiquetar el namespace como privileged (OBLIGATORIO antes de lanzar cualquier PipelineRun)
+kubectl label namespace tekton-pipelines \
+  pod-security.kubernetes.io/enforce=privileged \
+  pod-security.kubernetes.io/warn=privileged \
+  pod-security.kubernetes.io/audit=privileged \
+  --overwrite
+
+# Verificar que se aplicó
+kubectl get namespace tekton-pipelines --show-labels | grep pod-security
+```
+
+**Síntoma sin este paso:** Los pods de los TaskRuns quedan en `Pending` indefinidamente.
+Al describir el pod se ve un evento de tipo `Warning` con el mensaje:
+```
+Error from server (Forbidden): pods "..." is forbidden:
+violates PodSecurity "restricted:latest"
 ```
 
 ---
@@ -139,6 +196,30 @@ kubectl apply -f 04-pipeline.yaml
 # Verificar
 kubectl get tasks -n tekton-pipelines
 kubectl get pipeline -n tekton-pipelines
+```
+
+### ⚠️ CRÍTICO — PipelineRun: usar nombre fijo, no `generateName`
+
+Los PipelineRuns en este repo usan `metadata.name` con un nombre fijo
+(`build-and-deploy-v1`, `build-and-deploy-v2`). **No usen `generateName`** porque
+`kubectl apply` no lo soporta y lanza este error:
+
+```
+error: from: build-and-deploy-: cannot use generate name with apply
+```
+
+La solución es que el YAML tenga siempre un `name` fijo:
+```yaml
+metadata:
+  name: build-and-deploy-v1   # ✅ nombre fijo → kubectl apply funciona
+  # generateName: build-and-deploy-  ← ❌ solo funciona con kubectl create
+  namespace: tekton-pipelines
+```
+
+Si quieren lanzar el mismo PipelineRun una segunda vez deben borrar el anterior:
+```bash
+kubectl delete pipelinerun build-and-deploy-v1 -n tekton-pipelines
+kubectl apply -f tekton/05-pipelinerun-v1.yaml
 ```
 
 ---
@@ -480,6 +561,134 @@ kubectl get pvc -n tekton-pipelines  # verificar que se liberaron los PVCs NFS
 ---
 
 ## Troubleshooting
+
+> Esta sección recoge los problemas encontrados en el despliegue real del lab.
+> Todos los errores siguientes ocurrieron y fueron resueltos durante la preparación.
+
+---
+
+### ❌ Pods de Tekton en `Pending` — PodSecurity violation
+
+**Síntoma:**
+```bash
+kubectl get pods -n tekton-pipelines
+# NAME                                  READY   STATUS    RESTARTS
+# build-and-deploy-v1-clone-pod         0/1     Pending   0
+```
+
+```bash
+kubectl describe pod <nombre-pod> -n tekton-pipelines | grep -A5 Events
+# Warning  FailedCreate ... violates PodSecurity "restricted:latest"
+```
+
+**Causa:** Kubernetes 1.25+ bloquea pods con privilegios elevados en namespaces sin
+etiqueta de PodSecurity. Kaniko (el builder de imágenes) necesita capacidades de root.
+
+**Solución:**
+```bash
+kubectl label namespace tekton-pipelines \
+  pod-security.kubernetes.io/enforce=privileged \
+  --overwrite
+```
+
+---
+
+### ❌ `cannot use generate name with apply`
+
+**Síntoma:**
+```bash
+kubectl apply -f tekton/05-pipelinerun-v1.yaml
+# error: from: build-and-deploy-: cannot use generate name with apply
+```
+
+**Causa:** El YAML usaba `generateName` en lugar de `name`. `kubectl apply` requiere
+un nombre determinista para calcular el diff; `generateName` solo funciona con
+`kubectl create`.
+
+**Solución:** Cambiar el YAML de:
+```yaml
+metadata:
+  generateName: build-and-deploy-   # ❌
+```
+a:
+```yaml
+metadata:
+  name: build-and-deploy-v1         # ✅
+```
+
+---
+
+### ❌ `git push` rechazado — autenticación GitHub
+
+**Síntoma:**
+```
+remote: Support for password authentication was removed on August 13, 2021.
+fatal: Authentication failed for 'https://github.com/...'
+```
+
+**Causa:** GitHub eliminó la autenticación por contraseña vía HTTPS. Es necesario
+usar un Personal Access Token (PAT).
+
+**Solución:**
+```bash
+# 1. Generar token en: GitHub → Settings → Developer settings → Personal access tokens → Fine-grained
+#    Permisos: Contents (Read & Write), Metadata (Read)
+
+# 2. Actualizar la URL del remote con el token
+git remote set-url origin https://<USUARIO>:<TOKEN>@github.com/<USUARIO>/page-public-demo.git
+
+# 3. Verificar
+git remote -v
+
+# 4. Hacer push normalmente
+git push
+```
+
+> Para el lab con Rocky Linux 9, el credential helper no está configurado por
+> defecto, por lo que incluir el token en la URL es el método más directo.
+
+---
+
+### ❌ Namespace `demo` no existe al sincronizar ArgoCD
+
+**Síntoma:** ArgoCD muestra la Application en estado `Missing` y los recursos no
+se crean.
+
+**Causa:** El namespace `demo` no existía antes de que ArgoCD intentara crear el
+Deployment y el Service.
+
+**Solución:** El archivo `argocd/application.yaml` ya incluye:
+```yaml
+syncOptions:
+  - CreateNamespace=true
+```
+Si el namespace sigue sin crearse, aplicarlo manualmente:
+```bash
+kubectl apply -f k8s/namespace.yaml
+```
+
+---
+
+### ❌ ArgoCD NodePort 30443 no accesible desde fuera del cluster
+
+**Síntoma:** La UI de ArgoCD no carga en el navegador en `https://<IP>:30443`.
+
+**Causa:** El firewall de Rocky Linux 9 (firewalld) bloquea el puerto.
+
+**Solución:**
+```bash
+# Opción A — Ansible (todos los nodos de golpe)
+ansible all -i /root/kubernetes/ansible-k8s/inventory/hosts.ini \
+  -m firewalld \
+  -a "port=30443/tcp permanent=yes state=enabled immediate=yes" \
+  --become
+
+# Opción B — Manual en cada nodo
+firewall-cmd --add-port=30443/tcp --permanent
+firewall-cmd --reload
+```
+
+---
 
 ### PipelineRun falla en el paso `clone`
 
