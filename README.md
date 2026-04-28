@@ -94,15 +94,19 @@ Permisos: Contents → Read & Write, Metadata → Read
 ### Puertos de firewall necesarios (Rocky Linux 9)
 
 ```bash
-# Abrir todos los puertos del lab de una vez (ejecutar en TODOS los nodos)
+# Abrir puerto 30443 (ArgoCD) en todos los nodos con Ansible
 ansible all -i /root/kubernetes/ansible-k8s/inventory/hosts.ini \
   -m firewalld \
-  -a "port={{ item }}/tcp permanent=yes state=enabled immediate=yes" \
-  --become \
-  -e "item={{ item }}" \
-  --loop "30443 31080"
+  -a "port=30443/tcp permanent=yes state=enabled immediate=yes" \
+  --become
 
-# O manualmente nodo por nodo:
+# Abrir puerto 31080 (App demo) en todos los nodos con Ansible
+ansible all -i /root/kubernetes/ansible-k8s/inventory/hosts.ini \
+  -m firewalld \
+  -a "port=31080/tcp permanent=yes state=enabled immediate=yes" \
+  --become
+
+# O manualmente en cada nodo:
 for port in 30443 31080; do
   firewall-cmd --add-port=${port}/tcp --permanent
 done
@@ -173,7 +177,7 @@ violates PodSecurity "restricted:latest"
 kubectl create secret docker-registry docker-credentials \
   --docker-server=https://index.docker.io/v1/ \
   --docker-username=guerrero11dan \
-  --docker-password=<TU_TOKEN_DOCKERHUB> \
+  --docker-password=dckr_pat_07EOIEt1ZvVElt1_T0B2bZcwXWk \
   -n tekton-pipelines
 
 # Verificar que se creó
@@ -287,6 +291,18 @@ Password: (la del comando anterior)
 Aceptar el certificado auto-firmado → Advanced → Proceed
 ```
 
+### Instalar CLI de ArgoCD (opcional pero útil)
+
+```bash
+curl -sSL -o /usr/local/bin/argocd \
+  https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+chmod +x /usr/local/bin/argocd
+argocd version --client
+
+# Login (necesario antes de usar cualquier comando argocd)
+argocd login localhost:30443 --insecure --username admin --password <PASSWORD>
+```
+
 ---
 
 ## PARTE 6 — Crear la Application en ArgoCD
@@ -324,28 +340,28 @@ kubectl get svc -n demo
 
 ### Paso 1 — Modificar la app (simular trabajo del Dev)
 
-Editar `app/index.html` — cambiar algo visible:
-```html
-<!-- Buscar esta línea y cambiarla: -->
-<div class="version-badge">v1.0.0</div>
-<!-- Por: -->
-<div class="version-badge">v2.0.0</div>
+Usar **siempre `sed`** — más seguro que `vi` en un demo en vivo:
+```bash
+# Cambiar versión y color del badge
+sed -i 's/v1\.0\.0/v2.0.0/g' app/index.html
+sed -i 's/#238636/#1f6feb/g' app/index.html
 
-<!-- Y en la info-grid cambiar el valor de Versión: -->
-<div class="value">v2.0.0</div>
-
-<!-- Opcional: cambiar el color del badge en el CSS: -->
-background: #1f6feb;   /* azul en vez de verde */
+# Verificar
+grep -E "v2.0.0|1f6feb" app/index.html
 ```
+
+> ⚠️ **No uses `vi`** para este paso. Es fácil golpear accidentalmente otras líneas del archivo
+> (por ejemplo cambiar `apiVersion: apps/v1` a `apps/v2`) y romper el deploy.
 
 ### Paso 2 — Actualizar el tag de imagen en el manifiesto K8s
 
-Editar `k8s/deployment.yaml`:
-```yaml
-# Cambiar:
-image: guerrero11dan/page-public-demo:v1
-# Por:
-image: guerrero11dan/page-public-demo:v2
+```bash
+# Cambiar el tag de imagen con sed (nunca con vi)
+sed -i 's|image: guerrero11dan/page-public-demo:v1|image: guerrero11dan/page-public-demo:v2|g' k8s/deployment.yaml
+
+# Verificar
+grep image k8s/deployment.yaml
+# debe mostrar: image: guerrero11dan/page-public-demo:v2
 ```
 
 ### Paso 3 — Commit y push
@@ -368,10 +384,17 @@ tkn pipelinerun logs --last -f -n tekton-pipelines
 
 ArgoCD hace polling cada 3 minutos. Para no esperar:
 ```bash
-# Forzar sync inmediato (requiere CLI de ArgoCD)
+# Login al CLI de ArgoCD (necesario una vez por sesión)
+argocd login localhost:30443 --insecure --username admin --password <PASSWORD>
+
+# Forzar sync inmediato
 argocd app sync page-demo
 
-# O desde la UI: Applications → page-demo → Sync → Synchronize
+# O sin CLI, forzar refresh via kubectl
+kubectl annotate application page-demo -n argocd \
+  argocd.argoproj.io/refresh=normal --overwrite
+
+# O desde la UI: Applications → page-demo → SYNC → Synchronize
 ```
 
 ### Paso 6 — Verificar el despliegue
@@ -665,6 +688,79 @@ syncOptions:
 Si el namespace sigue sin crearse, aplicarlo manualmente:
 ```bash
 kubectl apply -f k8s/namespace.yaml
+```
+
+---
+
+### ❌ `argocd app sync` falla con "no session information"
+
+**Síntoma:**
+```
+{"level":"fatal","msg":"rpc error: code = Unauthenticated desc = no session information"}
+```
+
+**Causa:** El CLI de ArgoCD requiere login explícito antes de ejecutar cualquier comando.
+
+**Solución:**
+```bash
+# Hacer login primero (una vez por sesión de terminal)
+argocd login localhost:30443 --insecure --username admin --password <PASSWORD>
+
+# Luego el sync funciona
+argocd app sync page-demo
+```
+
+---
+
+### ❌ App no se actualiza tras reconstruir la misma imagen (mismo tag)
+
+**Síntoma:** El pipeline v2 terminó exitosamente pero los pods siguen sirviendo el
+contenido anterior. `kubectl get deployment` muestra la imagen correcta pero los pods
+no se recrearon.
+
+**Causa:** Kubernetes solo hace `imagePull` cuando el tag de imagen **cambia** en el
+Deployment. Si el tag es el mismo (`:v2`) pero el contenido de la imagen cambió
+(Kaniko hizo push de una nueva capa), Kubernetes no lo sabe y no recrea los pods.
+
+**Solución:**
+```bash
+# Forzar recreación de pods para que pulls la nueva imagen
+kubectl rollout restart deployment/page-demo -n demo
+
+# Verificar que los pods se recrearon
+kubectl get pods -n demo -w
+```
+
+> En producción se evita este problema usando tags únicos por commit:
+> `image: guerrero11dan/page-public-demo:abc1234` en vez de `:v2`.
+
+---
+
+### ❌ Error 404 en favicon.ico en los logs de nginx
+
+**Síntoma:** Los logs del pod muestran repetidamente:
+```
+open() "/usr/share/nginx/html/favicon.ico" failed (2: No such file or directory)
+GET /favicon.ico HTTP/1.1" 404
+```
+
+**Causa:** El navegador solicita automáticamente `favicon.ico` para mostrar el ícono
+de la pestaña. La imagen no incluye ese archivo. **No afecta el funcionamiento.**
+
+**Solución (cosmética):**
+```bash
+# Suprimir el error añadiendo una etiqueta link en el HTML
+sed -i 's|<meta charset="UTF-8">|<meta charset="UTF-8">\n  <link rel="icon" href="data:,">|' app/index.html
+
+git add app/index.html
+git commit -m "fix: suppress favicon 404"
+git push
+
+# Reconstruir la imagen y forzar rollout
+kubectl delete pipelinerun build-and-deploy-v2 -n tekton-pipelines 2>/dev/null; true
+kubectl apply -f tekton/05-pipelinerun-v2.yaml
+tkn pipelinerun logs build-and-deploy-v2 -f -n tekton-pipelines
+kubectl rollout restart deployment/page-demo -n demo
 ```
 
 ---
