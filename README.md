@@ -177,7 +177,7 @@ violates PodSecurity "restricted:latest"
 kubectl create secret docker-registry docker-credentials \
   --docker-server=https://index.docker.io/v1/ \
   --docker-username=guerrero11dan \
-  --docker-password=dckr_pat_07EOIEt1ZvVElt1_T0B2bZcwXWk \
+  --docker-password=TU_DOCKER_PAT_AQUI \
   -n tekton-pipelines
 
 # Verificar que se creó
