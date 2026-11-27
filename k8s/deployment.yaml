@@ -17,7 +17,12 @@ spec:
     spec:
       containers:
         - name: page-demo
-          image: guerrero11dan/page-public-demo:v2   # ArgoCD detecta cambios aquí
+          # Imagen fijada por digest, no por tag. El tag :v2 es mutable y llego
+          # a apuntar a tres builds distintos: las replicas servian contenido
+          # diferente sin que Argo CD lo reportara como OutOfSync.
+          # Para desplegar una version nueva: construir, tomar el digest del
+          # result IMAGE_DIGEST del pipeline y cambiarlo aqui en un commit.
+          image: guerrero11dan/page-public-demo@sha256:3b8e682442ed4586463abe955f082d0a6330fef03a894c5a50f28b3572b56ce3
           ports:
             - containerPort: 80
           resources:
