@@ -1,7 +1,7 @@
 # Lanzar: kubectl apply -f 05-pipelinerun-v1.yaml
 # Logs:   tkn pipelinerun logs --last -f -n tekton-pipelines
 # Estado: tkn pipelinerun list -n tekton-pipelines
-apiVersion: tekton.dev/v1beta1
+apiVersion: tekton.dev/v1
 kind: PipelineRun
 metadata:
   name: build-and-deploy-v1

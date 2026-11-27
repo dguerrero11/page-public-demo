@@ -1,4 +1,4 @@
-apiVersion: tekton.dev/v1beta1
+apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
   name: build-and-deploy
@@ -14,12 +14,17 @@ spec:
       type: string
       default: main
     - name: image
-      description: "Imagen con tag. Ej: guerrero11dan/page-public-demo:v1"
+      description: "Imagen con tag. El tag es solo una etiqueta legible: lo que
+        se despliega es el digest que este pipeline devuelve en IMAGE_DIGEST."
       type: string
-      default: "guerrero11dan/page-public-demo:v1"
+      default: "guerrero11dan/page-public-demo:v2"
   workspaces:
     - name: shared-source
       description: Workspace NFS compartido entre Tasks
+  results:
+    - name: IMAGE_DIGEST
+      description: Digest de la imagen construida, para fijar en k8s/deployment.yaml
+      value: $(tasks.build-push.results.IMAGE_DIGEST)
   tasks:
     - name: clone
       taskRef:

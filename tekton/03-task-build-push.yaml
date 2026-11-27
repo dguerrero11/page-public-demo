@@ -1,4 +1,4 @@
-apiVersion: tekton.dev/v1beta1
+apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   name: build-push
@@ -16,6 +16,10 @@ spec:
       description: Directorio de contexto del build (relativo al workspace)
       type: string
       default: app
+  results:
+    - name: IMAGE_DIGEST
+      description: Digest sha256 de la imagen publicada. Es la referencia
+        inmutable que se fija en k8s/deployment.yaml.
   workspaces:
     - name: source
       description: Workspace con el código clonado
@@ -29,6 +33,7 @@ spec:
         - --cache=true
         - --cache-ttl=24h
         - --verbosity=info
+        - --digest-file=/tekton/results/IMAGE_DIGEST
       env:
         - name: DOCKER_CONFIG
           value: /kaniko/.docker

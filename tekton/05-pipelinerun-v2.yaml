@@ -1,6 +1,6 @@
 # Usar después de modificar app/index.html para v2
 # y actualizar k8s/deployment.yaml con image: dguerrero11/page-demo:v2
-apiVersion: tekton.dev/v1beta1
+apiVersion: tekton.dev/v1
 kind: PipelineRun
 metadata:
   name: build-and-deploy-v2
